@@ -74,4 +74,58 @@ const resolveDescendantsData = async (descendantsData: any, locale: string) => {
     }
 }
 
-export { login, resolveDescendantsData };
+const bfs = async (queue: any, visited: any, res: any) => {
+    const headers = {
+        api_key: apiKey,
+        authtoken: await login(),
+        "Content-Type": "application/json",
+    };
+
+    let chunked = [];
+
+    try {
+        while(queue.length > 0) {
+            const frontNode = queue.shift();
+            const ref = frontNode.ref;
+            const currLevel = frontNode.level;
+            
+            console.log(ref, frontNode);
+
+            // API call for each item's descendants
+            const descendants = await axios.get(
+                `https://app.contentstack.com/api/v3/content_types/${ref._content_type_uid || ref.type}/entries/${ref.uid}/descendants?locale=${ref.locale}`,
+                { headers }
+            );
+
+            const descendantsData: any = await descendants.data;
+
+            chunked.push(descendantsData);
+
+            const references = descendantsData.entries_references;
+  
+            references.forEach((ref: any) => {
+                // if not visited
+                if(!visited.has(ref.uid)) {
+                    queue.push({ ref, level: currLevel + 1 });
+                    visited.add(ref.uid);
+                }
+            });
+
+            if(queue.length > 0 && currLevel !== queue[0].level) {
+                res.write(JSON.stringify({ items: chunked }) + "\n")
+                chunked = [];
+            }
+        }
+
+        res.write(JSON.stringify({ items: chunked }) + "\n");
+        res.end();
+    }
+    catch(error) {
+        console.log(error);
+        res.status(500).json({
+            message: "Server error"
+        });
+    }   
+}
+
+export { login, resolveDescendantsData, bfs };

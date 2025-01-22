@@ -3,7 +3,7 @@ import { Item } from "./types";
 import axios from "axios";
 import cors from "cors";
 import { apiKey } from "./config";
-import { login, resolveDescendantsData } from "./helper";
+import { bfs, login, resolveDescendantsData } from "./helper";
 
 const app = express();
 
@@ -149,6 +149,29 @@ app.get("/api/v3/items/proposal-2", async (req: Request, res: Response) => {
         res.status(500).json({
             status: "error",
             message: "Internal server error. Please try again later.",
+        });
+    }
+});
+
+app.get("/api/v3/items/bfs", async (req: Request, res: Response) => {
+    const { parent } = req.body;
+    const queue: any = [];
+    const visited: any = new Set();
+
+    res.setHeaders(new Map([["Content-Type", "application/json"], ["Transfer-Encoding", "chunked"]]));
+
+    try {
+        queue.push({ ref: parent, level: 0});
+        visited.add(parent.uid);
+
+        await bfs(queue, visited, res);
+
+        // res.status(200).json({ items: bfsResult, count: bfsResult.length });
+    }
+    catch(error) {
+        console.log(error);
+        res.status(500).json({
+            message: "Server error"
         });
     }
 });
