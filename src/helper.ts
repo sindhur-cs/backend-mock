@@ -88,8 +88,6 @@ const bfs = async (queue: any, visited: any, res: any) => {
             const frontNode = queue.shift();
             const ref = frontNode.ref;
             const currLevel = frontNode.level;
-            
-            console.log(ref, frontNode);
 
             // API call for each item's descendants
             const descendants = await axios.get(
@@ -99,7 +97,28 @@ const bfs = async (queue: any, visited: any, res: any) => {
 
             const descendantsData: any = await descendants.data;
 
-            chunked.push(descendantsData);
+            // filter the entries_references
+            const filteredReferences = descendantsData.entries_references.map((ref: any) => {
+                return {
+                    uid: ref.uid,
+                    title: ref.title,
+                    locale: ref.locale,
+                    version: ref._version,
+                    content_type_uid: ref._content_type_uid,
+                }
+            });
+
+            const filteredData = {
+                uid: descendantsData.uid,
+                title: descendantsData.title,
+                locale: descendantsData.locale,
+                version: descendantsData._version,
+                content_type_uid: descendantsData._content_type_uid,
+                references: filteredReferences
+            }
+
+            chunked.push(filteredData);
+            console.log(descendantsData);
 
             const references = descendantsData.entries_references;
   
@@ -111,13 +130,15 @@ const bfs = async (queue: any, visited: any, res: any) => {
                 }
             });
 
+            // when the current level ends send the chunk to the client
             if(queue.length > 0 && currLevel !== queue[0].level) {
-                res.write(JSON.stringify({ items: chunked }) + "\n")
+                res.write(JSON.stringify({ items: chunked, _is_last_chunk: false }) + "\n")
                 chunked = [];
             }
         }
 
-        res.write(JSON.stringify({ items: chunked }) + "\n");
+        // send the last chunk
+        res.write(JSON.stringify({ items: chunked, _is_last_chunk: true }) + "\n");
         res.end();
     }
     catch(error) {
