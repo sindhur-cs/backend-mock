@@ -1,6 +1,8 @@
 import { apiKey, baseUrl, mail, password } from "./config";
 import { EntryReferenceResolver, InvokingService } from "../../entry_references_sdk";
 import axios from "axios";
+import { Headers } from "./types";
+
 const ITEM_TYPES = {
     ENTRY: "entry"
 }
@@ -74,14 +76,8 @@ const resolveDescendantsData = async (descendantsData: any, locale: string) => {
     }
 }
 
-const bfs = async (queue: any, visited: any, res: any) => {
-    const headers = {
-        api_key: apiKey,
-        authtoken: await login(),
-        "Content-Type": "application/json",
-    };
-
-    let chunked = [];
+const bfs = async (queue: any, visited: any, res: any, headers: Headers, locales: any) => {
+    let chunked: any[] = [];
 
     try {
         while(queue.length > 0) {
@@ -89,46 +85,53 @@ const bfs = async (queue: any, visited: any, res: any) => {
             const ref = frontNode.ref;
             const currLevel = frontNode.level;
 
-            // API call for each item's descendants
-            const descendants = await axios.get(
-                `https://app.contentstack.com/api/v3/content_types/${ref._content_type_uid || ref.type}/entries/${ref.uid}/descendants?locale=${ref.locale}`,
-                { headers }
-            );
+            await Promise.all(locales.map(async (locale: any) => {
+                // API call for each item's descendants
+                const descendants = await axios.get(
+                    `https://app.contentstack.com/api/v3/content_types/${ref._content_type_uid || ref.type}/entries/${ref.uid}/descendants?locale=${locale.code}`,
+                    { headers }
+                );
 
-            const descendantsData: any = await descendants.data;
+                const descendantsData: any = await descendants.data;
 
-            // filter the entries_references
-            const filteredReferences = descendantsData.entries_references.map((ref: any) => {
-                return {
-                    uid: ref.uid,
-                    title: ref.title,
-                    locale: ref.locale,
-                    version: ref._version,
-                    content_type_uid: ref._content_type_uid,
+                // filter the entries_references
+                const filteredReferences = descendantsData.entries_references.map((ref: any) => {
+                    return {
+                        uid: ref.uid,
+                        title: ref.title,
+                        locale: locale.code,
+                        // if the current locale matches the ref.locale sure it is localised and no fallback
+                        fallback_locale: (locale.fallback_locale) ? (locale.code === ref.locale) ? locale.fallback_locale : ref.locale : null,
+                        ...((locale.code === ref.locale) ? { localised: true } : { localised: false }),
+                        version: ref._version,
+                        content_type_uid: ref._content_type_uid,
+                    }
+                });
+
+                const filteredData = {
+                    uid: descendantsData.uid,
+                    title: descendantsData.title,
+                    locale: locale.code,
+                    // if the current locale matches the descendantsData.locale sure it is localised and no fallback
+                    fallback_locale: (locale.fallback_locale) ? (locale.code === descendantsData.locale) ? locale.fallback_locale : descendantsData.locale : null,
+                    ...(locale.code === descendantsData.locale ? { localised: true } : { localised: false }),
+                    version: descendantsData._version,
+                    content_type_uid: descendantsData._content_type_uid,
+                    references: filteredReferences
                 }
-            });
 
-            const filteredData = {
-                uid: descendantsData.uid,
-                title: descendantsData.title,
-                locale: descendantsData.locale,
-                version: descendantsData._version,
-                content_type_uid: descendantsData._content_type_uid,
-                references: filteredReferences
-            }
+                chunked.push(filteredData);
 
-            chunked.push(filteredData);
-            console.log(descendantsData);
-
-            const references = descendantsData.entries_references;
-  
-            references.forEach((ref: any) => {
-                // if not visited
-                if(!visited.has(ref.uid)) {
-                    queue.push({ ref, level: currLevel + 1 });
-                    visited.add(ref.uid);
-                }
-            });
+                const references = descendantsData.entries_references;
+    
+                references.forEach((ref: any) => {
+                    // if not visited
+                    if(!visited.has(ref.uid)) {
+                        visited.add(ref.uid);
+                        queue.push({ ref, level: currLevel + 1 });
+                    }
+                });
+            }));
 
             // when the current level ends send the chunk to the client
             if(queue.length > 0 && currLevel !== queue[0].level) {

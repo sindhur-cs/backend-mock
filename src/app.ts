@@ -2,7 +2,7 @@ import express, { Request, Response } from "express";
 import { Item } from "./types";
 import axios from "axios";
 import cors from "cors";
-import { apiKey } from "./config";
+import { apiKey, baseUrl } from "./config";
 import { bfs, login, resolveDescendantsData } from "./helper";
 
 const app = express();
@@ -10,7 +10,7 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
-app.get("/api/v3/items/proposal-1", async (req: Request, res: Response): Promise<any> => {
+app.post("/api/v3/items/proposal-1", async (req: Request, res: Response): Promise<any> => {
     const { include_count, page, size } = req.query;
     const { items, expected_fields } = req.body;
 
@@ -95,12 +95,12 @@ app.get("/api/v3/items/proposal-1", async (req: Request, res: Response): Promise
     }
 });
 
-app.get("/api/v3/items/proposal-2", async (req: Request, res: Response) => {
+app.post("/api/v3/items/proposal-2", async (req: Request, res: Response) => {
     const { items, expected_fields } = req.body;
     const CHUNK_SIZE = 3;
 
-    const headers = new Map([["Content-Type", "application/json"], ["Transfer-Encoding", "chunked"]]);
-    res.setHeaders(headers);
+    res.setHeader("Content-Type", "application/json");
+    res.setHeader("Transfer-Encoding", "chunked");
 
     try {
         let chunks: any[] = [];
@@ -153,19 +153,35 @@ app.get("/api/v3/items/proposal-2", async (req: Request, res: Response) => {
     }
 });
 
-app.get("/api/v3/items/bfs", async (req: Request, res: Response) => {
-    const { parent } = req.body;
+app.get("/api/v3/items/bfs/content_types/:type/entries/:uid", async (req: Request, res: Response) => {
+    const { locale, version } = req.query;
+    const { type, uid } = req.params;
     const queue: any = [];
     const visited: any = new Set();
 
-    res.setHeaders(new Map([["Content-Type", "application/json"], ["Transfer-Encoding", "chunked"]]));
+    res.setHeader("Content-Type", "application/json");
+    res.setHeader("Transfer-Encoding", "chunked");
+
+    const headers = {
+        api_key: apiKey as string,
+        authtoken: await login(),
+        "Content-Type": "application/json",
+    };
+
+    const parent = {
+        uid,
+        locale,
+        version,
+        type
+    };
 
     try {
-        queue.push({ ref: parent, level: 0});
+        const localesResponse = await axios.get(`https://${baseUrl}/v3/locales`, { headers });
+        const locales: any = await localesResponse.data;
+        queue.push({ ref: parent, level: 0 });
         visited.add(parent.uid);
 
-        await bfs(queue, visited, res);
-
+        await bfs(queue, visited, res, headers, locales.locales);
         // res.status(200).json({ items: bfsResult, count: bfsResult.length });
     }
     catch(error) {

@@ -4,3 +4,9 @@ export interface Item {
     version: string,
     type: string
 }
+
+export interface Headers {
+    api_key: string,
+    authtoken: string,
+    "Content-Type": string,
+}
