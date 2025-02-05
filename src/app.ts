@@ -176,6 +176,7 @@ app.get("/api/v3/items/bfs/content_types/:type/entries/:uid", async (req: Reques
     };
 
     try {
+        // send variants from here
         const localesResponse = await axios.get(`https://${baseUrl}/v3/locales`, { headers });
         const locales: any = await localesResponse.data;
         queue.push({ ref: parent, level: 0 });
