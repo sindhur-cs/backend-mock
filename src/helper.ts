@@ -134,8 +134,6 @@ const bfs = async (queue: any, visited: any, res: any, headers: Headers, locales
 
         localisedVariantsEntries = localisedVariantsEntries.flat().filter((entry: any) => entry);
 
-        console.log(localisedVariantsEntries);
-
         const descendantsData: any = await getDescendants(node, masterLocale, headers);
 
         const filteredReferences = descendantsData.entries_references.map((ref: any) => {
@@ -169,8 +167,10 @@ const bfs = async (queue: any, visited: any, res: any, headers: Headers, locales
         // base variant parent
         chunked.push(filteredData);
         filteredData.references.forEach((ref: any) => {
-            queue.push({ ref, level: currLevel + 1 })
-            visited.add(ref.uid);
+            if(!visited.has(ref.uid)) {
+                visited.add(ref.uid);
+                queue.push({ ref, level: currLevel + 1 })
+            }
         });
 
         // adding all the variants base parent
@@ -207,18 +207,21 @@ const bfs = async (queue: any, visited: any, res: any, headers: Headers, locales
                 // to avoid duplicates in case if any
                 newReferences = Array.from(new Set(newReferences.flat()));
 
-                data = {...filteredData, locale: parentVariant.locale, fallback_locale: (masterLocale.code === parentVariant.locale ? null : masterLocale.code), references: newReferences, variant_uid: parentVariant._variant._uid};
+                data = {...filteredData, title: parentVariant.title, locale: parentVariant.locale, fallback_locale: (masterLocale.code === parentVariant.locale ? null : masterLocale.code), references: newReferences, variant_uid: parentVariant._variant._uid};
             }
             
             data && chunked.push(data);
             data && data.references.forEach((dataRef: any) => {
-                queue.push({ ref: dataRef, level: currLevel + 1 })
-                visited.add(dataRef.uid);
+                if(!visited.has(dataRef.uid)) {
+                    visited.add(dataRef.uid);
+                    queue.push({ ref: dataRef, level: currLevel + 1 })
+                }
             });
         });
 
         res.write(JSON.stringify({ items: chunked, _is_last_chunk: false }) + "\n")
         chunked = [];
+        console.log(queue);
 
 /* -------------------------------------------------------------------------------------------------------------------------------------------------------- */
 
