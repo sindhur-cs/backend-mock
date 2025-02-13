@@ -145,7 +145,8 @@ const bfs = async (queue: any, visited: any, res: any, headers: Headers, locales
                 fallback_locale: (masterLocale.fallback_locale) ? (masterLocale.code === ref.locale) ? masterLocale.fallback_locale : ref.locale : null,
                 ...((masterLocale.code === ref.locale) ? { localised: true } : { localised: false }),
                 version: ref._version,
-                content_type_uid: ref._content_type_uid
+                content_type_uid: ref._content_type_uid,
+                workflow_stage: ref?._workflow?.name
             }
         });
 
@@ -159,7 +160,8 @@ const bfs = async (queue: any, visited: any, res: any, headers: Headers, locales
             version: descendantsData._version,
             content_type_uid: descendantsData._content_type_uid,
             references: filteredReferences,
-            variant_uid: "base_variant"
+            variant_uid: "base_variant",
+            workflow_stage: descendantsData?._workflow?.name
         }
 
         queue.pop();
@@ -178,7 +180,7 @@ const bfs = async (queue: any, visited: any, res: any, headers: Headers, locales
             let data = null;
             if(!parentVariant._metadata || (parentVariant._metadata && !parentVariant._metadata.references)) {
                 // fallback_locale needs a locale map to determine the fallback as variant do not provide the fallback_locale
-                data = {...filteredData, locale: parentVariant.locale, fallback_locale: (masterLocale.code === parentVariant.locale ? null : masterLocale.code), variant_uid: parentVariant._variant._uid};
+                data = {...filteredData, locale: parentVariant.locale, fallback_locale: (masterLocale.code === parentVariant.locale ? null : masterLocale.code), variant_uid: parentVariant._variant._uid, fallback_variant: "base_variant"};
             }
             else {
                 // filtering the newReferences from the variant
@@ -193,11 +195,17 @@ const bfs = async (queue: any, visited: any, res: any, headers: Headers, locales
 
                 // duplicate the references with the base entry to maintain the all the references
                 const allReferences = filteredData.references.map((ref: any) => {
-                    const isPresentRef = newReferences.filter((newRef: any) => newRef.content_type_uid === ref.content_type_uid);
+                    let isPresentRef = newReferences.filter((newRef: any) => newRef.content_type_uid === ref.content_type_uid);
                     if(!(isPresentRef.length)) {
                         return ref;
                     }
                     else {
+                        // making all the references even shaped (or schema)
+
+                        /*** need to make change in the logic ***/
+                        isPresentRef = isPresentRef.map((presentRef: any) => {
+                            return {...presentRef, locale: masterLocale.code, localised: true};
+                        });
                         return isPresentRef;
                     }
                 });
@@ -233,6 +241,7 @@ const bfs = async (queue: any, visited: any, res: any, headers: Headers, locales
             await Promise.all(locales.map(async (locale: any) => {
                 // API call for each item's descendants
                 const descendantsData: any = await getDescendants(node, locale, headers);
+                console.log(descendantsData);
 
                 // filter the entries_references
                 const filteredReferences = descendantsData.entries_references.map((ref: any) => {
@@ -245,7 +254,8 @@ const bfs = async (queue: any, visited: any, res: any, headers: Headers, locales
                         ...((locale.code === ref.locale) ? { localised: true } : { localised: false }),
                         version: ref._version,
                         content_type_uid: ref._content_type_uid,
-                        parent_uid: frontNode.ref.uid
+                        parent_uid: frontNode.ref.uid,
+                        workflow_stage: ref?._workflow?.name
                     }
                 });
 
@@ -259,7 +269,8 @@ const bfs = async (queue: any, visited: any, res: any, headers: Headers, locales
                     version: descendantsData._version,
                     content_type_uid: descendantsData._content_type_uid,
                     references: filteredReferences,
-                    variant_uid: node.variant_uid
+                    variant_uid: node.variant_uid,
+                    workflow_stage: node?._workflow?.name
                 }
 
                 chunked.push(filteredData);
