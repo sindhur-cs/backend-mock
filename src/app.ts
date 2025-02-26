@@ -1,18 +1,22 @@
 import express, { Request, Response } from "express";
 import { Item } from "./types";
-import axios from "axios";
+import axios, { request } from "axios";
 import cors from "cors";
-import { apiKey, baseUrl } from "./config";
+import { baseUrl } from "./config";
 import { bfs, login, resolveDescendantsData } from "./helper";
 
 const app = express();
 
 app.use(express.json());
-app.use(cors());
+app.use(cors({
+    origin: ["https://demo-graph.contentstackapps.com", "http://localhost:3000"],
+    credentials: true
+}));
 
 app.post("/api/v3/items/proposal-1", async (req: Request, res: Response): Promise<any> => {
     const { include_count, page, size } = req.query;
     const { items, expected_fields } = req.body;
+    const stackAPI = req.headers.api_key;
 
     // Validate required query parameters
     if (!include_count || !page || !size) {
@@ -49,7 +53,7 @@ app.post("/api/v3/items/proposal-1", async (req: Request, res: Response): Promis
             items.map(async (item: Item) => {
                 try {
                     const headers = {
-                        api_key: apiKey,
+                        api_key: stackAPI,
                         authtoken: await login(),
                         "Content-Type": "application/json",
                     };
@@ -97,6 +101,7 @@ app.post("/api/v3/items/proposal-1", async (req: Request, res: Response): Promis
 
 app.post("/api/v3/items/proposal-2", async (req: Request, res: Response) => {
     const { items, expected_fields } = req.body;
+    const stackAPI = req.headers.api_key;
     const CHUNK_SIZE = 3;
 
     res.setHeader("Content-Type", "application/json");
@@ -109,7 +114,7 @@ app.post("/api/v3/items/proposal-2", async (req: Request, res: Response) => {
         await Promise.all(items.map(async (item: Item) => {
             try {
                 const headers = {
-                    api_key: apiKey,
+                    api_key: stackAPI,
                     authtoken: await login(),
                     "Content-Type": "application/json",
                 };
@@ -153,17 +158,24 @@ app.post("/api/v3/items/proposal-2", async (req: Request, res: Response) => {
     }
 });
 
-app.get("/api/v3/items/bfs/content_types/:type/entries/:uid", async (req: Request, res: Response) => {
+app.get("/api/v3/items/bfs/content_types/:type/entries/:uid", async (req: Request, res: Response): Promise<any> => {
     const { locale, version } = req.query;
     const { type, uid } = req.params;
+    const stackAPI = req.headers.api_key;
     const queue: any = [];
     const visited: any = new Set();
+
+    if(!type || !uid || !stackAPI) {
+        return res.status(400).json({
+            message: "Missing essentials input data"
+        })
+    }
 
     res.setHeader("Content-Type", "application/json");
     res.setHeader("Transfer-Encoding", "chunked");
 
     const headers = {
-        api_key: apiKey as string,
+        api_key: stackAPI as string,
         authtoken: await login(),
         "Content-Type": "application/json",
     };

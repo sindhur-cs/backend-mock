@@ -229,7 +229,7 @@ const bfs = async (queue: any, visited: any, res: any, headers: Headers, locales
 
         res.write(JSON.stringify({ items: chunked, _is_last_chunk: false }) + "\n")
         chunked = [];
-        console.log(queue);
+        // console.log(queue);
 
 /* -------------------------------------------------------------------------------------------------------------------------------------------------------- */
 
@@ -241,7 +241,7 @@ const bfs = async (queue: any, visited: any, res: any, headers: Headers, locales
             await Promise.all(locales.map(async (locale: any) => {
                 // API call for each item's descendants
                 const descendantsData: any = await getDescendants(node, locale, headers);
-                console.log(descendantsData);
+                // console.log(descendantsData);
 
                 // filter the entries_references
                 const filteredReferences = descendantsData.entries_references.map((ref: any) => {
